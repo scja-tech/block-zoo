@@ -1,0 +1,482 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#9ED8F5">
+<title>Block Zoo</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Andika:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --sky:#9ED8F5; --sky-hi:#D8F1FC;
+    --grass:#5DB84A; --grass-dk:#3F8F33;
+    --dirt:#7A4E2D; --dirt-dk:#623E22;
+    --wood:#C98B4F; --wood-dk:#9A6431;
+    --ink:#23303B; --paper:#FFFDF6; --sun:#FFC43D;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden;overscroll-behavior:none}
+  body{
+    font-family:'Andika','Trebuchet MS',system-ui,sans-serif;
+    color:var(--ink);
+    background:linear-gradient(var(--sky-hi),var(--sky) 55%);
+    -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;
+  }
+  button{font-family:inherit;color:var(--ink);cursor:pointer}
+  button:focus-visible{outline:5px solid var(--sun);outline-offset:3px}
+
+  /* ---------- blocks ---------- */
+  .block{
+    --b:96px; --c:#ccc; --d:#999;
+    width:var(--b);height:var(--b);flex:none;
+    border-radius:12px;background:var(--c);
+    box-shadow:inset 0 calc(var(--b)*-.09) 0 var(--d), inset 0 calc(var(--b)*.06) 0 rgba(255,255,255,.35), 0 5px 0 rgba(0,0,0,.2);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+    touch-action:none;position:relative;border:none;padding:0;
+  }
+  .block .ico{font-size:calc(var(--b)*.4);line-height:1}
+  .block .word{font-weight:700;font-size:calc(var(--b)*.2);line-height:1.1;background:rgba(255,253,246,.9);padding:0 .35em;border-radius:6px}
+  .block.crate{
+    --c:var(--wood); --d:var(--wood-dk);
+    background:repeating-linear-gradient(0deg,var(--wood) 0 22%,var(--wood-dk) 22% 25%);
+  }
+  .block.crate .ico{display:none}
+  .block.crate .word{font-size:calc(var(--b)*.3);padding:.05em .4em}
+  .block.lifted{opacity:.3}
+  .ghost{position:fixed;left:0;top:0;z-index:60;pointer-events:none;will-change:transform}
+
+  /* ---------- layout ---------- */
+  #game{position:fixed;inset:0;display:grid;grid-template-rows:auto 1fr auto;
+    padding:env(safe-area-inset-top,0) env(safe-area-inset-right,0) 0 env(safe-area-inset-left,0)}
+  header{display:flex;justify-content:space-between;align-items:center;padding:1.6vh 2.5vw}
+  .hbtn{font-size:clamp(20px,3.6vmin,32px);font-weight:700;background:var(--paper);
+    border:4px solid var(--ink);border-radius:16px;padding:.15em .6em;box-shadow:0 4px 0 var(--ink)}
+  .hbtn:active{transform:translateY(3px);box-shadow:0 1px 0 var(--ink)}
+  .stars{font-size:clamp(20px,3.6vmin,32px);font-weight:700}
+
+  main{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:3vw;align-items:center;padding:0 3vw 2vh}
+  .guest{display:flex;flex-direction:column;align-items:center;min-width:0}
+  .animal{font-size:min(20vmin,150px);line-height:1;background:none;border:none;padding:0;
+    filter:drop-shadow(0 6px 0 rgba(0,0,0,.12))}
+  .animal.shake{animation:shake .45s}
+  .aname{font-size:clamp(22px,4.6vmin,40px);font-weight:700;margin:.2em 0 .5em;background:var(--paper);
+    border:4px solid var(--ink);border-radius:12px;padding:0 .5em}
+  .wish{background:var(--paper);border:4px solid var(--ink);border-radius:20px;padding:1.4vh 1.6vw;
+    display:flex;flex-direction:column;gap:.6vh;box-shadow:0 5px 0 var(--ink)}
+  .need{display:flex;align-items:center;gap:.4em;font-size:clamp(24px,5.2vmin,46px);font-weight:700;
+    background:none;border:none;padding:.1em .2em;border-radius:12px}
+  .need .n{min-width:1ch;text-align:center}
+  .need.full{opacity:.45}
+  .dots{display:flex;gap:.15em}
+  .dot{width:.45em;height:.45em;border-radius:50%;border:3px solid var(--ink);background:var(--paper)}
+  .dot.on{background:var(--sun)}
+  .nextbtn{font-size:clamp(26px,5.5vmin,48px);font-weight:700;background:var(--sun);border:5px solid var(--ink);
+    border-radius:22px;padding:.3em .9em;box-shadow:0 6px 0 var(--ink)}
+  .nextbtn:active{transform:translateY(4px);box-shadow:0 2px 0 var(--ink)}
+
+  .pen{--b2:clamp(54px,12.5vmin,108px);
+    position:relative;justify-self:center;display:grid;grid-template-columns:repeat(4,var(--b2));gap:1.4vmin;
+    padding:2.2vmin;border:12px solid var(--wood);border-radius:16px;
+    background:repeating-conic-gradient(#62BD4F 0 25%,#58B246 0 50%) 0 0/calc(var(--b2)*.5) calc(var(--b2)*.5);
+    box-shadow:inset 0 0 0 4px var(--wood-dk),0 7px 0 var(--wood-dk);transition:outline-color .15s}
+  .pen.hover{outline:6px dashed var(--sun);outline-offset:6px}
+  .slot{width:var(--b2);height:var(--b2);border-radius:12px;border:3px dashed rgba(255,255,255,.6)}
+  .slot .block{--b:var(--b2)}
+  .slot .block.pop{animation:pop .25s ease-out}
+  .resident{position:absolute;inset:0;display:grid;place-items:center;font-size:min(18vmin,140px);pointer-events:none;
+    filter:drop-shadow(0 6px 0 rgba(0,0,0,.2));animation:hop .55s ease 3}
+  .spark{position:absolute;left:50%;top:50%;font-size:5vmin;pointer-events:none;animation:burst .9s ease-out forwards}
+
+  .tray{display:flex;justify-content:center;align-items:center;gap:2.2vw;flex-wrap:nowrap;
+    padding:2.2vh 2vw calc(2.4vh + env(safe-area-inset-bottom,0));
+    background:
+      radial-gradient(circle at 20% 60%,var(--dirt-dk) 0 5px,transparent 6px) 0 0/90px 70px,
+      radial-gradient(circle at 70% 30%,var(--dirt-dk) 0 4px,transparent 5px) 0 0/120px 80px,
+      var(--dirt);
+    border-top:14px solid var(--grass);box-shadow:inset 0 6px 0 var(--grass-dk)}
+  .tray .block{--b:clamp(62px,13vmin,112px)}
+
+  /* ---------- overlays ---------- */
+  .overlay{position:fixed;inset:0;z-index:40;display:none;place-items:center;background:rgba(35,48,59,.55)}
+  .overlay.open{display:grid}
+  .sheet{background:var(--paper);border:5px solid var(--ink);border-radius:24px;padding:3vh 3vw;
+    max-width:92vw;max-height:88vh;overflow:auto;box-shadow:0 8px 0 var(--ink)}
+  .sheet h2{margin:0 0 2vh;font-size:clamp(26px,5vmin,44px)}
+  .book{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:2vmin}
+  .card{background:#fff;border:4px solid var(--ink);border-radius:18px;padding:1.5vh 1vw;text-align:center;
+    font-size:clamp(18px,3.4vmin,30px);font-weight:700}
+  .card .e{font-size:min(12vmin,90px);display:block;line-height:1.1}
+  .card.locked .e{filter:brightness(0);opacity:.2}
+  .row{display:flex;gap:1vw;flex-wrap:wrap;margin:1vh 0 2vh}
+  .opt{font-size:clamp(18px,3.2vmin,28px);font-weight:700;background:#fff;border:4px solid var(--ink);border-radius:14px;padding:.2em .7em}
+  .opt[aria-pressed="true"]{background:var(--sun)}
+  .small{font-size:clamp(15px,2.6vmin,22px);margin:0 0 .5vh}
+
+  #start{position:fixed;inset:0;z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5vh;
+    background:linear-gradient(var(--sky-hi),var(--sky) 70%,var(--grass) 70% 73%,var(--dirt) 73%)}
+  .logo{display:flex;gap:1vmin;flex-wrap:wrap;justify-content:center}
+  .logo .block{--b:clamp(48px,11vmin,100px);animation:drop .5s cubic-bezier(.3,1.5,.6,1) both}
+  .logo .block .word{font-size:calc(var(--b)*.55);background:none;color:#fff;text-shadow:0 3px 0 rgba(0,0,0,.3)}
+  .logo .gap{width:3vmin}
+  .play{font-size:clamp(34px,8vmin,72px);font-weight:700;background:var(--sun);border:6px solid var(--ink);
+    border-radius:28px;padding:.15em 1.2em;box-shadow:0 8px 0 var(--ink)}
+  .play:active{transform:translateY(5px);box-shadow:0 3px 0 var(--ink)}
+
+  #rotate{position:fixed;inset:0;z-index:90;display:none;place-items:center;text-align:center;background:var(--sky);
+    font-size:6vmin;font-weight:700;padding:5vw}
+  #rotate .e{font-size:20vmin;display:block;animation:turn 1.6s ease-in-out infinite}
+  @media (orientation:portrait){#rotate{display:grid}}
+
+  @keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-12px)}40%,80%{transform:translateX(12px)}}
+  @keyframes pop{from{transform:scale(.4)}to{transform:scale(1)}}
+  @keyframes hop{0%,100%{transform:translateY(0)}50%{transform:translateY(-8vmin)}}
+  @keyframes burst{to{transform:translate(var(--dx),var(--dy)) scale(.6);opacity:0}}
+  @keyframes drop{from{transform:translateY(-40vh)}to{transform:none}}
+  @keyframes turn{0%,20%{transform:rotate(0)}60%,100%{transform:rotate(-90deg)}}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<div id="start">
+  <div class="logo" id="logo"></div>
+  <button class="play" id="playBtn">Play</button>
+</div>
+
+<div id="game">
+  <header>
+    <button class="hbtn" id="bookBtn" aria-label="Animal book">📖 <span id="bookCount">0</span>/6</button>
+    <div class="stars" aria-label="Stars">⭐ <span id="starCount">0</span></div>
+    <button class="hbtn" id="gearBtn" aria-label="Grown-up settings">⚙️</button>
+  </header>
+  <main>
+    <section class="guest" id="guest"></section>
+    <div class="pen" id="pen" aria-label="Animal home"></div>
+  </main>
+  <nav class="tray" id="tray" aria-label="Blocks"></nav>
+</div>
+
+<div class="overlay" id="bookSheet">
+  <div class="sheet">
+    <h2>My animals</h2>
+    <div class="book" id="book"></div>
+    <div class="row" style="justify-content:center;margin-top:3vh"><button class="opt" data-close>Close</button></div>
+  </div>
+</div>
+
+<div class="overlay" id="gearSheet">
+  <div class="sheet">
+    <h2>For grown-ups</h2>
+    <p class="small">Blocks show</p>
+    <div class="row" id="modeRow">
+      <button class="opt" data-mode="auto">Auto</button>
+      <button class="opt" data-mode="pictures">Pictures</button>
+      <button class="opt" data-mode="words">Words only</button>
+    </div>
+    <p class="small">Auto shows pictures for the first 3 animals, then words only.</p>
+    <div class="row">
+      <button class="opt" id="resetBtn">Reset progress</button>
+      <button class="opt" data-close>Close</button>
+    </div>
+  </div>
+</div>
+
+<div id="rotate"><div><span class="e">📱</span>Turn your tablet sideways</div></div>
+
+<script>
+const BLOCKS = {
+  ice:   {word:'ice',   ico:'🧊', c:'#CFF0FC', d:'#8ECFE6'},
+  water: {word:'water', ico:'💧', c:'#4AA8E0', d:'#2C7FB5'},
+  tree:  {word:'tree',  ico:'🌳', c:'#3F9A45', d:'#2A6E30'},
+  sand:  {word:'sand',  ico:'🐚', c:'#F2D16B', d:'#CFA83E'},
+  grass: {word:'grass', ico:'🌱', c:'#7CCB5B', d:'#4E9A34'},
+  rock:  {word:'rock',  ico:'🪨', c:'#A4A4A4', d:'#747474'}
+};
+const ANIMALS = [
+  {id:'penguin',   name:'Penguin',    emoji:'🐧',   needs:{ice:3, water:2}},
+  {id:'monkey',    name:'Monkey',     emoji:'🐒',   needs:{tree:3, grass:1}},
+  {id:'camel',     name:'Camel',      emoji:'🐫',   needs:{sand:4, rock:1}},
+  {id:'frog',      name:'Frog',       emoji:'🐸',   needs:{water:3, grass:2}},
+  {id:'polarbear', name:'Polar bear', emoji:'🐻‍❄️', needs:{ice:4, rock:1}},
+  {id:'lion',      name:'Lion',       emoji:'🦁',   needs:{grass:3, rock:2}}
+];
+const NUM = ['zero','one','two','three','four','five','six','seven','eight'];
+const SLOTS = 8;
+const SAVE_KEY = 'blockzoo-v1';
+
+const $ = s => document.querySelector(s);
+const guestEl = $('#guest'), penEl = $('#pen'), trayEl = $('#tray');
+
+/* ---------- save ---------- */
+function load(){
+  const base = {collected:[], stars:0, mode:'auto', wordIntro:false};
+  try { const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if (s && Array.isArray(s.collected)) return Object.assign(base, s); } catch(e){}
+  return base;
+}
+function save(){ try { localStorage.setItem(SAVE_KEY, JSON.stringify(state)); } catch(e){} }
+let state = load();
+const wordMode = () => state.mode === 'words' || (state.mode === 'auto' && state.collected.length >= 3);
+
+/* ---------- sound ---------- */
+let voice = null;
+function pickVoice(){
+  const vs = speechSynthesis.getVoices();
+  voice = vs.find(v => /en[-_]US/i.test(v.lang) && /google/i.test(v.name)) || vs.find(v => /^en/i.test(v.lang)) || null;
+}
+if ('speechSynthesis' in window){ pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
+function say(text, rate = 0.9){
+  if (!('speechSynthesis' in window)) return;
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = 'en-US'; if (voice) u.voice = voice; u.rate = rate; u.pitch = 1.1;
+  speechSynthesis.speak(u);
+}
+let ac = null;
+function sfx(kind){
+  try {
+    ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+    if (ac.state === 'suspended') ac.resume();
+    const seq = kind === 'pop' ? [[660,.09]] : kind === 'nope' ? [[260,.12],[200,.16]] : [[523,.12],[659,.12],[784,.12],[1047,.35]];
+    let at = ac.currentTime;
+    for (const [f,d] of seq){
+      const o = ac.createOscillator(), g = ac.createGain();
+      o.type = 'triangle'; o.frequency.value = f;
+      g.gain.setValueAtTime(.0001, at); g.gain.exponentialRampToValueAtTime(.3, at+.01); g.gain.exponentialRampToValueAtTime(.0001, at+d);
+      o.connect(g).connect(ac.destination); o.start(at); o.stop(at+d+.02); at += d;
+    }
+  } catch(e){}
+}
+
+/* ---------- game state ---------- */
+let current = null, placed = [], done = false, trayOrder = Object.keys(BLOCKS);
+const need = t => current.needs[t] || 0;
+const count = t => placed.filter(x => x === t).length;
+const complete = () => Object.keys(current.needs).every(t => count(t) === need(t));
+const plural = (n, w) => `${NUM[n]} ${w} block${n > 1 ? 's' : ''}`;
+
+function blockEl(type, crate){
+  const b = BLOCKS[type], el = document.createElement('div');
+  el.className = 'block' + (crate ? ' crate' : '');
+  el.style.setProperty('--c', b.c); el.style.setProperty('--d', b.d);
+  el.dataset.type = type;
+  el.innerHTML = `<span class="ico">${b.ico}</span><span class="word">${b.word}</span>`;
+  return el;
+}
+
+function nextAnimal(){
+  const fresh = ANIMALS.filter(a => !state.collected.includes(a.id));
+  const pool = fresh.length ? fresh : ANIMALS.filter(a => !current || a.id !== current.id);
+  current = pool[Math.floor(Math.random() * pool.length)];
+  placed = []; done = false;
+  trayOrder = Object.keys(BLOCKS);
+  if (wordMode()) trayOrder.sort(() => Math.random() - .5);
+  render();
+  if (wordMode() && !state.wordIntro){
+    state.wordIntro = true; save();
+    say("Now the blocks only show words. Can you read them? Tap a block to hear it.");
+    setTimeout(introduce, 5200);
+  } else setTimeout(introduce, 350);
+}
+function introduce(){
+  const parts = Object.entries(current.needs).map(([t,n]) => plural(n, BLOCKS[t].word));
+  say(`Hi! I am a ${current.name.toLowerCase()}. I need ${parts.join(' and ')}.`);
+}
+
+function render(){
+  $('#bookCount').textContent = state.collected.length;
+  $('#starCount').textContent = state.stars;
+
+  guestEl.innerHTML = '';
+  const a = document.createElement('button');
+  a.className = 'animal'; a.textContent = current.emoji; a.setAttribute('aria-label', current.name);
+  a.onclick = introduce;
+  const nm = document.createElement('div'); nm.className = 'aname'; nm.textContent = current.name;
+  guestEl.append(a, nm);
+
+  if (done){
+    const nb = document.createElement('button');
+    nb.className = 'nextbtn'; nb.textContent = 'Next animal 🐾'; nb.onclick = nextAnimal;
+    guestEl.append(nb);
+  } else {
+    const wish = document.createElement('div'); wish.className = 'wish';
+    for (const [t,n] of Object.entries(current.needs)){
+      const c = count(t), row = document.createElement('button');
+      row.className = 'need' + (c === n ? ' full' : '');
+      row.innerHTML = `<span>${BLOCKS[t].ico}</span><span class="n">${n}</span><span class="dots">${
+        Array.from({length:n}, (_,i) => `<span class="dot${i < c ? ' on' : ''}"></span>`).join('')}</span>`;
+      row.onclick = () => say(plural(n, BLOCKS[t].word));
+      wish.append(row);
+    }
+    guestEl.append(wish);
+  }
+
+  penEl.innerHTML = '';
+  for (let i = 0; i < SLOTS; i++){
+    const s = document.createElement('div'); s.className = 'slot';
+    if (placed[i]){
+      const b = blockEl(placed[i], false);
+      if (i === placed.length - 1 && render.justPlaced) b.classList.add('pop');
+      b.onclick = () => removeAt(i);
+      s.append(b);
+    }
+    penEl.append(s);
+  }
+  render.justPlaced = false;
+  if (done){
+    const r = document.createElement('div'); r.className = 'resident'; r.textContent = current.emoji;
+    penEl.append(r);
+  }
+
+  trayEl.innerHTML = '';
+  const crate = wordMode();
+  for (const t of trayOrder){
+    const b = blockEl(t, crate);
+    b.addEventListener('pointerdown', startDrag);
+    trayEl.append(b);
+  }
+}
+
+function removeAt(i){
+  if (done) return;
+  const t = placed[i]; placed.splice(i, 1);
+  say(`Bye bye, ${BLOCKS[t].word}.`); render();
+}
+
+function tapBlock(type){
+  const w = BLOCKS[type].word;
+  if (wordMode()) say(`${w.split('').join(', ')}. ${w}!`, 0.75);
+  else say(w);
+}
+
+function drop(type){
+  if (done) return false;
+  const w = BLOCKS[type].word, n = need(type);
+  if (!n){
+    sfx('nope'); const a = guestEl.querySelector('.animal');
+    a.classList.remove('shake'); void a.offsetWidth; a.classList.add('shake');
+    say(`No thank you! The ${current.name.toLowerCase()} does not need ${w}.`);
+    return false;
+  }
+  const c = count(type);
+  if (c >= n){ sfx('nope'); say(`That is enough ${w}!`); return false; }
+  placed.push(type); render.justPlaced = true; sfx('pop'); render();
+  say(`${NUM[c+1]}!`, 1);
+  if (complete()) setTimeout(win, 650);
+  return true;
+}
+
+function win(){
+  done = true; state.stars++;
+  if (!state.collected.includes(current.id)) state.collected.push(current.id);
+  save(); sfx('win'); render(); burst();
+  say(`Hooray! The ${current.name.toLowerCase()} loves its new home!`);
+}
+
+function burst(){
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  for (let i = 0; i < 12; i++){
+    const s = document.createElement('span'); s.className = 'spark'; s.textContent = i % 2 ? '⭐' : '✨';
+    const ang = (i / 12) * Math.PI * 2, r = 18 + Math.random() * 10;
+    s.style.setProperty('--dx', `${Math.cos(ang) * r}vmin`); s.style.setProperty('--dy', `${Math.sin(ang) * r}vmin`);
+    penEl.append(s); setTimeout(() => s.remove(), 1000);
+  }
+}
+
+/* ---------- drag & drop (touch friendly) ---------- */
+function overPen(x, y){
+  const r = penEl.getBoundingClientRect(), m = 40;
+  return x > r.left - m && x < r.right + m && y > r.top - m && y < r.bottom + m;
+}
+function startDrag(e){
+  const el = e.currentTarget, type = el.dataset.type;
+  e.preventDefault();
+  try { el.setPointerCapture(e.pointerId); } catch(_){}
+  const rect = el.getBoundingClientRect();
+  const start = {x:e.clientX, y:e.clientY}, off = {x:e.clientX - rect.left, y:e.clientY - rect.top};
+  let ghost = null;
+  const place = ev => { ghost.style.transform = `translate(${ev.clientX - off.x}px,${ev.clientY - off.y}px) scale(1.12)`; };
+  function move(ev){
+    if (!ghost && Math.hypot(ev.clientX - start.x, ev.clientY - start.y) > 8){
+      ghost = el.cloneNode(true); ghost.classList.add('ghost');
+      ghost.style.width = rect.width + 'px'; ghost.style.height = rect.height + 'px';
+      document.body.append(ghost); el.classList.add('lifted');
+    }
+    if (ghost){ place(ev); penEl.classList.toggle('hover', overPen(ev.clientX, ev.clientY)); }
+  }
+  function up(ev){
+    el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', up); el.removeEventListener('pointercancel', up);
+    penEl.classList.remove('hover'); el.classList.remove('lifted');
+    if (!ghost){ if (ev.type === 'pointerup') tapBlock(type); return; }
+    if (ev.type === 'pointerup' && overPen(ev.clientX, ev.clientY) && drop(type)){ ghost.remove(); return; }
+    ghost.style.transition = 'transform .25s ease';
+    ghost.style.transform = `translate(${rect.left}px,${rect.top}px)`;
+    setTimeout(() => ghost.remove(), 270);
+  }
+  el.addEventListener('pointermove', move); el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+}
+
+/* ---------- sheets ---------- */
+function openSheet(id){ $(id).classList.add('open'); }
+document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => b.closest('.overlay').classList.remove('open'));
+document.querySelectorAll('.overlay').forEach(o => o.addEventListener('click', e => { if (e.target === o) o.classList.remove('open'); }));
+
+$('#bookBtn').onclick = () => {
+  const book = $('#book'); book.innerHTML = '';
+  for (const a of ANIMALS){
+    const got = state.collected.includes(a.id), c = document.createElement('button');
+    c.className = 'card' + (got ? '' : ' locked');
+    c.innerHTML = `<span class="e">${a.emoji}</span>${got ? a.name : '?'}`;
+    c.onclick = () => say(got ? a.name : 'Who is hiding here?');
+    book.append(c);
+  }
+  openSheet('#bookSheet');
+  say(`You have ${NUM[state.collected.length]} animal${state.collected.length === 1 ? '' : 's'}.`);
+};
+
+function syncModeButtons(){ document.querySelectorAll('[data-mode]').forEach(b => b.setAttribute('aria-pressed', b.dataset.mode === state.mode)); }
+$('#gearBtn').onclick = () => { syncModeButtons(); openSheet('#gearSheet'); };
+document.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => {
+  state.mode = b.dataset.mode; save(); syncModeButtons();
+  trayOrder = Object.keys(BLOCKS); if (wordMode()) trayOrder.sort(() => Math.random() - .5);
+  render();
+});
+$('#resetBtn').onclick = () => {
+  if (!confirm('Reset all animals and stars?')) return;
+  state = {collected:[], stars:0, mode:state.mode, wordIntro:false}; save();
+  $('#gearSheet').classList.remove('open'); nextAnimal();
+};
+
+/* ---------- start ---------- */
+(function logo(){
+  const L = $('#logo'), colors = Object.values(BLOCKS);
+  [...'Block Zoo'].forEach((ch, i) => {
+    if (ch === ' '){ const g = document.createElement('div'); g.className = 'gap'; L.append(g); return; }
+    const c = colors[i % colors.length], b = document.createElement('div');
+    b.className = 'block'; b.style.setProperty('--c', c.c); b.style.setProperty('--d', c.d);
+    b.style.animationDelay = `${i * 70}ms`;
+    b.innerHTML = `<span class="word">${ch}</span>`;
+    L.append(b);
+  });
+})();
+
+$('#playBtn').onclick = () => {
+  sfx('pop'); say(' ');
+  const standalone = matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches;
+  if (!standalone && document.documentElement.requestFullscreen){
+    document.documentElement.requestFullscreen().catch(() => {});
+  }
+  $('#start').remove();
+  nextAnimal();
+};
+
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')){
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+</script>
+</body>
+</html>
